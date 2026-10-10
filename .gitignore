@@ -1,0 +1,34 @@
+# LaTeX 编译中间产物 —— 可由 main.tex 重新生成；其中 .log/.fls/.fdb_latexmk/.synctex.gz
+# 还会记录编译机器的绝对路径与用户名，故不入库。
+*.aux
+*.log
+*.out
+*.toc
+*.fls
+*.fdb_latexmk
+*.synctex.gz
+*.bbl
+*.blg
+*.nav
+*.snm
+*.vrb
+*.xdv
+
+# latexmk / 编辑器输出目录（保留最终成品 PDF）
+.build/*
+!.build/main.pdf
+out/
+build/
+
+# 编辑器与系统
+.vscode/
+.idea/
+*.swp
+*~
+Thumbs.db
+desktop.ini
+.DS_Store
+
+# Windows 下载标记等副产物文件
+*Zone.Identifier
+:Zone.Identifier
