@@ -40,12 +40,12 @@ lualatex main.tex
 ```
 main.tex        全文（含导言区与全部章节）
 main.pdf        编译成品
-*.png           插图，由 main.tex 里的 \includegraphics 按文件名引用
+image/          全部插图，由 main.tex 里的 \includegraphics{image/文件名} 引用
 ```
 
 ## 说明
 
-- 所有插图直接以文件名引用，与 `main.tex` 同级；改动插图不会自动被 LaTeX 感知，必要时先删旧的 `.aux` 再编。
+- 所有插图集中在 `image/` 目录下，`main.tex` 以 `image/文件名` 引用；改动插图不会自动被 LaTeX 感知，必要时先删旧的 `.aux` 再编。
 - 仓库**不含** LaTeX 中间产物（`.aux` / `.log` / `.out` / `.toc` / `.fls` / `.fdb_latexmk` / `.synctex.gz`），它们由编译重新生成。
 - 若需要点击 PDF 跳回源码，编译时保留 `-synctex=1`，用支持 SyncTeX 的阅读器打开 `main.pdf` 即可。
 - 纯黑白排版：正文与公式为黑，页眉页脚与提示性文字为灰，无彩色。
