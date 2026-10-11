@@ -14,9 +14,9 @@
 *.vrb
 *.xdv
 
-# latexmk / 编辑器输出目录（保留最终成品 PDF）
-.build/*
-!.build/main.pdf
+# 编译中间产物目录：成品 PDF 出在书稿根（main.pdf，随书发布），
+# 这里只是 aux/log/out/toc/xdv/fls/fdb_latexmk —— 可整个删掉重建，故全不入库。
+.build/
 out/
 build/
 

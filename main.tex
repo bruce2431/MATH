@@ -1,4 +1,4 @@
-% !TEX program = lualatex
+% !TEX program = xelatex
 \documentclass[UTF8]{ctexbook}
 \usepackage[a4paper,margin=2.5cm]{geometry}\usepackage{amsmath,amssymb,amsthm}
 \usepackage{graphicx}
@@ -6281,7 +6281,648 @@ $t$ 分布则是在正态模型框架下，对方差未知与小样本情形的�
 \]
 频数分布提供经验起点；正态分布提供理论基准；$t$ 分布在特定条件下对正态分布进行修正。理解这三者的区别与联系，有助于在统计建模中正确选择描述方法、分布假设与推断工具。
 
+\newpage
+\section{神经网络}
+
+\subsection{一个词的含义，由它周围的词给出}
+
+到目前为止，我们处理的量都是可以精确写出来的：一个数、一个向量、一个变换。但现实里需要处理的对象大多不以数字的形式出现——一句话、一段录音、一幅图像，它们首先要被转成向量，这一步通常称为嵌入（embedding）；而真正困难的是下一步：让这些向量学会互相参照。
+
+考虑这样一句话：
+\[
+\text{我}\quad\text{听说}\quad\text{你}\quad\text{已经}\quad\text{阅读}\quad\text{过}\quad\text{人类}\quad\text{几乎}\quad\text{所有}\quad\text{的}\quad\text{知识}
+\]
+单独看「知识」这个词，我们只知道它指称某一类东西；但在这句话里，它前面跟着「阅读过」「几乎」「所有」，于是它的含义被收窄成了一个「数量极大、可以被阅读的信息集合」。同样，「阅读」的主语是「你」而不是「我」，「已经」限定的又是「阅读」发生的时间。也就是说，一个词若不携带上下文，它的向量表示就是残缺的。
+
+一个自然的想法是让每个词只看固定长度的邻域，比如看前后各两个词。但这种做法的困难在于，究竟要看多远，完全取决于句子本身：上面的例子里，「你」要把自己理解成「阅读」的主语，需要一直看到句尾的「知识」，而只往右看两个词，它看到的是「已经」「阅读」，并不足以定下它的角色。
+
+注意力机制（attention）给出的回答非常简单直接：不去规定看多远，而是让每个词自己决定该看谁、看多重的分量。
+
+\subsection{查询、键与值：三个角色}
+
+在图书馆里找书，我们不会站在书架前逐本翻。我们心里先有了一个「想找什么」的描述——比如「讲注意力的、有代码的、近几年的」——这就是查询（query）；书架上每一本书的标题与摘要，是它用来被人检索的「招牌」——这就是键（key）；而真正被我们带走的，是书里的内容——这就是值（value）。检索的过程是：拿「想找什么」与每一本书的「招牌」逐一比对，比对得越吻合，这本书就被翻得越仔细；最后带走的，是按吻合程度加权之后的「内容」。
+
+注意力机制把这件事原封不动地搬到了向量上。长度为 $n$ 的序列中，每个位置的输入向量 $x_i$（维度记为 $d$）会被三组不同的线性变换分别投影成三个向量：
+\[
+q_i=W_Q x_i,\qquad k_i=W_K x_i,\qquad v_i=W_V x_i,\qquad i=1,2,\dots,n ,
+\]
+其中 $W_Q,W_K,W_V$ 都是 $d\times d_k$ 的矩阵，它们的元素不是人设定的，而是在训练中由数据自己学出来的。三个角色的分工是：
+
+\begin{itemize}
+  \item $q_i$——第 $i$ 个词「想找什么」；
+  \item $k_j$——第 $j$ 个词「愿意被什么找到」；
+  \item $v_j$——第 $j$ 个词「真正提供的内容」。
+\end{itemize}
+
+请注意下标：$q_i$ 是当前这个位置发出的，而 $k_j$ 与 $v_j$ 是整句每一个位置都提供的。因此第 $i$ 个词要读一遍全句——它向每一个位置各发一次询问，再按回应的强弱把各位置的 $v$ 加权汇总，得到自己的新表示。另外要注意，$q_i$ 与 $k_i$ 虽然是同一个词 $x_i$ 变来的，却经过了不同的投影矩阵，所扮演的角色并不相同：一个人既是「提问者」又是「被提问者」，但这两件事用的是两套语汇。
+
+\subsection{把注意力画出来}
+
+\begin{figure}[H]
+  \centering
+  \begin{tikzpicture}[x=1.24cm, y=1cm, every node/.style={font=\small}]
+    % ---- 两排词：上 Query、下 Key，每个词一根竖条 ----
+    \draw[line width=2.2pt, black!70, line cap=round] (0,2.30) -- (0,3.30);
+    \draw[line width=2.2pt, black!70, line cap=round] (0,-3.30) -- (0,-2.30);
+    \node[anchor=south] at (0,3.36) {我};
+    \node[anchor=north] at (0,-3.36) {我};
+    \draw[line width=2.2pt, black!70, line cap=round] (1,2.30) -- (1,3.30);
+    \draw[line width=2.2pt, black!70, line cap=round] (1,-3.30) -- (1,-2.30);
+    \node[anchor=south] at (1,3.36) {听说};
+    \node[anchor=north] at (1,-3.36) {听说};
+    \draw[line width=2.2pt, black!70, line cap=round] (2,2.30) -- (2,3.30);
+    \draw[line width=2.2pt, black!70, line cap=round] (2,-3.30) -- (2,-2.30);
+    \node[anchor=south] at (2,3.36) {你};
+    \node[anchor=north] at (2,-3.36) {你};
+    \draw[line width=2.2pt, black!70, line cap=round] (3,2.30) -- (3,3.30);
+    \draw[line width=2.2pt, black!70, line cap=round] (3,-3.30) -- (3,-2.30);
+    \node[anchor=south] at (3,3.36) {已经};
+    \node[anchor=north] at (3,-3.36) {已经};
+    \draw[line width=2.2pt, black!70, line cap=round] (4,2.30) -- (4,3.30);
+    \draw[line width=2.2pt, black!70, line cap=round] (4,-3.30) -- (4,-2.30);
+    \node[anchor=south] at (4,3.36) {阅读};
+    \node[anchor=north] at (4,-3.36) {阅读};
+    \draw[line width=2.2pt, black!70, line cap=round] (5,2.30) -- (5,3.30);
+    \draw[line width=2.2pt, black!70, line cap=round] (5,-3.30) -- (5,-2.30);
+    \node[anchor=south] at (5,3.36) {过};
+    \node[anchor=north] at (5,-3.36) {过};
+    \draw[line width=2.2pt, black!70, line cap=round] (6,2.30) -- (6,3.30);
+    \draw[line width=2.2pt, black!70, line cap=round] (6,-3.30) -- (6,-2.30);
+    \node[anchor=south] at (6,3.36) {人类};
+    \node[anchor=north] at (6,-3.36) {人类};
+    \draw[line width=2.2pt, black!70, line cap=round] (7,2.30) -- (7,3.30);
+    \draw[line width=2.2pt, black!70, line cap=round] (7,-3.30) -- (7,-2.30);
+    \node[anchor=south] at (7,3.36) {几乎};
+    \node[anchor=north] at (7,-3.36) {几乎};
+    \draw[line width=2.2pt, black!70, line cap=round] (8,2.30) -- (8,3.30);
+    \draw[line width=2.2pt, black!70, line cap=round] (8,-3.30) -- (8,-2.30);
+    \node[anchor=south] at (8,3.36) {所有};
+    \node[anchor=north] at (8,-3.36) {所有};
+    \draw[line width=2.2pt, black!70, line cap=round] (9,2.30) -- (9,3.30);
+    \draw[line width=2.2pt, black!70, line cap=round] (9,-3.30) -- (9,-2.30);
+    \node[anchor=south] at (9,3.36) {的};
+    \node[anchor=north] at (9,-3.36) {的};
+    \draw[line width=2.2pt, black!70, line cap=round] (10,2.30) -- (10,3.30);
+    \draw[line width=2.2pt, black!70, line cap=round] (10,-3.30) -- (10,-2.30);
+    \node[anchor=south] at (10,3.36) {知识};
+    \node[anchor=north] at (10,-3.36) {知识};
+    \node[font=\footnotesize, anchor=east] at (-0.40,3.16) {Query};
+    \node[font=\footnotesize, anchor=east] at (-0.40,-3.16) {Key};
+    \draw[draw=black!82, line width=0.62pt, line cap=round] (8,2.28) to[out=-90, in=90] (7,-2.28);
+    \draw[draw=black!82, line width=0.62pt, line cap=round] (10,2.28) to[out=-90, in=90] (6,-2.28);
+    \draw[draw=black!78, line width=0.76pt, line cap=round] (0,2.28) to[out=-90, in=90] (10,-2.28);
+    \draw[draw=black!78, line width=0.76pt, line cap=round] (6,2.28) to[out=-90, in=90] (8,-2.28);
+    \draw[draw=black!78, line width=0.76pt, line cap=round] (7,2.28) to[out=-90, in=90] (10,-2.28);
+    \draw[draw=black!74, line width=0.90pt, line cap=round] (3,2.28) to[out=-90, in=90] (5,-2.28);
+    \draw[draw=black!74, line width=0.90pt, line cap=round] (5,2.28) to[out=-90, in=90] (10,-2.28);
+    \draw[draw=black!69, line width=1.04pt, line cap=round] (1,2.28) to[out=-90, in=90] (10,-2.28);
+    \draw[draw=black!69, line width=1.04pt, line cap=round] (2,2.28) to[out=-90, in=90] (2,-2.28);
+    \draw[draw=black!69, line width=1.04pt, line cap=round] (4,2.28) to[out=-90, in=90] (5,-2.28);
+    \draw[draw=black!65, line width=1.18pt, line cap=round] (1,2.28) to[out=-90, in=90] (2,-2.28);
+    \draw[draw=black!65, line width=1.18pt, line cap=round] (4,2.28) to[out=-90, in=90] (10,-2.28);
+    \draw[draw=black!61, line width=1.32pt, line cap=round] (5,2.28) to[out=-90, in=90] (4,-2.28);
+    \draw[draw=black!56, line width=1.46pt, line cap=round] (3,2.28) to[out=-90, in=90] (4,-2.28);
+    \draw[draw=black!56, line width=1.46pt, line cap=round] (7,2.28) to[out=-90, in=90] (8,-2.28);
+    \draw[draw=black!52, line width=1.60pt, line cap=round] (6,2.28) to[out=-90, in=90] (10,-2.28);
+    \draw[draw=black!52, line width=1.60pt, line cap=round] (8,2.28) to[out=-90, in=90] (10,-2.28);
+    \draw[draw=black!48, line width=1.74pt, line cap=round] (0,2.28) to[out=-90, in=90] (0,-2.28);
+    \draw[draw=black!48, line width=1.74pt, line cap=round] (2,2.28) to[out=-90, in=90] (10,-2.28);
+    \draw[draw=black!48, line width=1.74pt, line cap=round] (9,2.28) to[out=-90, in=90] (10,-2.28);
+    \draw[draw=black!39, line width=2.02pt, line cap=round] (10,2.28) to[out=-90, in=90] (10,-2.28);
+  \end{tikzpicture}
+  \caption{注意力的连线图。上排是「查询」(\emph{query})，下排是「键」(\emph{key})，两排词汇相同而向量不同。每一条弧线代表一次询问：上排第 $i$ 个词向下排第 $j$ 个词发问，弧线越粗、颜色越深，表示第 $i$ 个词从第 $j$ 个词那里取走的成分越多。这里画的是某一个注意力头（对应图~\ref{fig:multihead} 中的第三个头）学到的权重：绝大多数连线都很淡，只有「你$\to$知识」「所有$\to$知识」「的$\to$知识」这几条被明显加粗，说明这个头把注意力用在了「修饰语指向中心语」这一种关系上；而正对的那几条竖线（自己问自己）则说明每个词同时也保留了一部分自身的信息。}
+  \label{fig:attn-arc}
+\end{figure}
 
 
+图~\ref{fig:attn-arc} 是这一小节的全部内容的一幅素描。上排的每一个词都握着一份「想找什么」，它向下排的每个词发问；下排的每个词都摆出一份「愿意被什么找到」，用来回答上排的每一个提问。某一条线被画得很粗，说明提这个问题的人对那个回答很满意，会从对方那里取走较多内容；某一条线细得几乎看不见，说明这次询问基本落空。
+
+这张图里最值得留意的一点，是它的稀疏。如果每个词都平均地看所有别的词，这 11 个位置上应该有 $11\times 11=121$ 条差不多粗的线，图会变成一团墨。实际画出来却只有少数几条被明显加粗——「你$\to$知识」「所有$\to$知识」「的$\to$知识」，其余的连线都淡得近乎背景。这说明模型并没有在做平均，它把大部分注意力集中到了少数几个位置上，而那些位置恰好就是这句话里真正有语法与语义依赖的地方。更值得注意的是，这些依赖关系跨越的距离很长：「的」（第 10 个位置）与「知识」（第 11 个位置）是紧邻的，但「所有」（第 9 个位置）与「知识」之间隔着「的」，「你」（第 3 个位置）与「知识」之间隔了整整八个词。这种「远距离而不失焦」的能力，正是上一小节所说的固定窗口做不到的。
+
+\subsection{一次询问就是一次点积}
+
+有了 $q$ 与 $k$，接下来要把「第 $i$ 个词向第 $j$ 个词发出的询问得到了多强的回应」量化。最自然的选择就是内积：
+\[
+s_{ij}=q_i\cdot k_j .
+\]
+内积有一个直观的几何含义：它等于两个向量长度之积再乘以夹角余弦。若把 $q_i$ 看成「想找什么」所指的方向，把 $k_j$ 看成「能被什么找到」所指的方向，那么两者方向越一致，$s_{ij}$ 就越大，表示第 $j$ 个位置对第 $i$ 个位置的提问回答得越积极；若两者的方向互相垂直，内积为零，就表示这次询问什么也没问到。
+
+这里要强调的是，整个过程中没有任何一条人为写下的语法规则。没有人告诉模型「知识」应该被「的」「所有」注意，也没有人告诉它「你」是「阅读」的主语。模型只学到了三组投影矩阵，使得在训练语料上，那些经常一起出现、彼此存在依赖的词，其 $q$ 与 $k$ 恰好指向相近的方向。所谓「语义」，在这里并不是被定义出来的，而是被这种内积的吻合度逼出来的。
+
+\subsection{缩放与归一化}
+
+分数不能直接当权重用，因为它们的取值范围不受控制，而且有正有负。通常的做法是先统一除以 $\sqrt{d_k}$，再逐行做 softmax。
+
+除法这一步看似多余，其实很有必要。假设 $q$ 与 $k$ 的各个分量彼此独立、均值为 $0$、方差为 $1$，那么它们的内积是 $d_k$ 个独立项之和，方差会随之放大到 $d_k$；维度越高，内积的绝对值就越是容易跑到很大。而 softmax 对输入的尺度极为敏感：输入一大，它就会把绝大部分权重压在最大的那一项上，退化成近似「只看一个位置」，同时因为曲线进入饱和区，梯度也随之消失。除以 $\sqrt{d_k}$ 正好把方差拉回到 $1$，使 softmax 工作在尺度合适、梯度良好的区间里。
+
+softmax 把一行的分数变成一行权重：
+\[
+\alpha_{ij}=\frac{\exp\!\left(s_{ij}/\sqrt{d_k}\right)}{\sum_{t=1}^{n}\exp\!\left(s_{it}/\sqrt{d_k}\right)},
+\qquad \sum_{j=1}^{n}\alpha_{ij}=1 .
+\]
+用指数再归一化有两个直接后果。其一，所有权重严格为正，任何位置都不会被彻底抛弃，只是分量很小；其二，指数会放大分数之间的差距，略微领先的分数会得到明显更大的权重——这正是「注意力」这个词的来历，它不是平均，而是有偏向的加权平均。
+
+最后用这行权重把各位置的 $v$ 汇总起来：
+\[
+z_i=\sum_{j=1}^{n}\alpha_{ij}v_j .
+\]
+至此，第 $i$ 个词就有了一个吸收了全句信息的新向量 $z_i$，它下一步会被送进别的地方继续处理。
+
+\subsection{矩阵展开：一次算完所有位置}
+
+上面写的都是「第 $i$ 个位置」的单独算式。真正的实现不会逐词循环，而是把整句一次性堆成矩阵。设输入 $X$ 的形状是 $n\times d$，每个词占一行，那么
+\[
+Q=XW_Q,\qquad K=XW_K,\qquad V=XW_V
+\]
+的形状都是 $n\times d_k$：所有位置、所有查询、所有键值，都是一次矩阵乘法算出来的。拿一个很小的例子把整个过程摊开。取 $n=4$、$d_k=4$，四个词依次为「我」「阅读」「这」「本书」，并假定投影之后得到的三个矩阵恰好是
+\[
+Q=\begin{pmatrix}
+1&0&1&0\\
+0&1&1&0\\
+1&1&0&1\\
+0&0&1&1
+\end{pmatrix},\qquad
+K=\begin{pmatrix}
+1&0&0&1\\
+0&1&1&0\\
+1&0&1&0\\
+0&1&0&1
+\end{pmatrix},\qquad
+V=\begin{pmatrix}
+1&0&0\\
+0&1&0\\
+0&0&1\\
+1&1&1
+\end{pmatrix},
+\]
+其中的行从上到下依次对应「我」「阅读」「这」「本书」。值矩阵 $V$ 的前三行恰好取成了三个坐标基向量、最后一行取成全 $1$ 向量，这样后面输出的每一个分量都能被直接读出来，不必再做额外解释。
+
+第一步，算出分数矩阵 $S=QK^\top$：
+\[
+S=\begin{pmatrix}
+1&1&2&0\\
+0&2&1&1\\
+2&1&1&2\\
+1&1&1&1
+\end{pmatrix}.
+\]
+这个矩阵的每一个元素都是一次内积。第 $i$ 行是第 $i$ 个词发出的四次询问，第 $j$ 列是第 $j$ 个位置给出的回答。例如第二行第一列是 $0$，说明「阅读」问「我」，什么也没有问到；第二行第二列是 $2$，说明「阅读」问自己，得到了最强的回应。第三行（「这」）的前两列都是最大的值，说明这个虚指的指示代词更愿意去看它前面的名词。
+
+第二步，除以 $\sqrt{d_k}=\sqrt{4}=2$：
+\[
+\frac{1}{2}S=\begin{pmatrix}
+0.5&0.5&1.0&0.0\\
+0.0&1.0&0.5&0.5\\
+1.0&0.5&0.5&1.0\\
+0.5&0.5&0.5&0.5
+\end{pmatrix}.
+\]
+
+第三步，逐行做 softmax，得到权重矩阵 $A$（每一行的和都是 $1$）：
+\[
+A=\begin{pmatrix}
+0.235&0.235&0.387&0.143\\
+0.143&0.387&0.235&0.235\\
+0.311&0.189&0.189&0.311\\
+0.250&0.250&0.250&0.250
+\end{pmatrix}.
+\]
+现在可以逐行读这张表了。第一行说的是：「我」把 $0.235$ 的分量留给自己、$0.235$ 给「阅读」、$0.387$ 给「这」、$0.143$ 给「本书」。第二行说的是：「阅读」把最大的一份 $0.387$ 留给了自己，剩下的平均地分给「这」与「本书」，而对「我」只给了 $0.143$——因为前面算出它对「我」的分数是 $0$。最后一行很有意思：「本书」的四个原始分数都是 $1$，没有任何一个位置特别突出，于是 softmax 之下四个权重被摊成了相等的 $0.250$，注意力在这里退化成了一次普通的平均。这也提醒我们，attention 并不总是「有偏向」的：它偏向谁，完全取决于算出来的分数。
+
+第四步，用权重去汇总值向量，得到输出 $Z=AV$：
+\[
+Z=\begin{pmatrix}
+0.378&0.378&0.530\\
+0.378&0.622&0.470\\
+0.622&0.500&0.500\\
+0.500&0.500&0.500
+\end{pmatrix}.
+\]
+由于 $V$ 的前三行是坐标基向量、第四行是全 $1$ 向量，$Z$ 的每一行都可以直接读成「加权平均的结果」。以第一行为例：输出第一个分量 $0.378$ 来自第一、二、四行（它们的第一个分量分别是 $1,0,1$），也就是 $0.235+0.143=0.378$；第二个分量同样来自第二、四行，$0.235+0.143=0.378$；第三个分量来自第三、四行，$0.387+0.143=0.530$。最后一行 $Z$ 四个位置全是 $0.500$，正是刚才那行均匀权重的直接后果。
+
+把四步连起来看：一次矩阵乘法得到 $Q,K,V$，一次矩阵乘法得到全部分数，一次逐行 softmax 得到权重，再一次矩阵乘法得到输出。整个注意力层里没有任何一个数需要人工干预，全部由 $W_Q,W_K,W_V$ 决定。也正因为如此，它本身其实是一个线性运算——它做的事情，是一个「权重随内容而变」的加权平均；真正给网络带来非线性表达能力的，是接在它后面的前馈网络。
+
+\subsection{多头注意力：同一句话的多种读法}
+
+一个头只能产出一张权重表。可是同一句话里，词与词之间的依赖显然不止一种：有的依赖是「相邻」的，比如「阅读」与「过」；有的依赖是「修饰」的，比如「的」与「知识」；还有一类依赖近乎「保留自己」，比如一个词在加工过程中并不希望丢掉自身的原意。若强迫一个头同时表达这几种关系，它们势必互相干扰——一张权重表无法既稀疏又稠密，既看远处又看近处。
+
+多头注意力（multi-head attention）的解决办法是把 $d_k$ 维的空间切成 $h$ 份，让第 $r$ 个头在自己那一份子空间里独立地做一次完整的注意力，最后把 $h$ 个输出拼接起来，再乘一个输出矩阵：
+\[
+\operatorname{MultiHead}(X)=\big[\operatorname{head}_1;\operatorname{head}_2;\cdots;\operatorname{head}_h\big]W_O,
+\qquad
+\operatorname{head}_r=\operatorname{softmax}\!\left(\frac{Q_rK_r^\top}{\sqrt{d_k}}\right)V_r .
+\]
+也就是说，参数总量几乎没变（每一份子空间都变小了 $h$ 倍），但得到的却不再是「一张」权重表，而是 $h$ 张各有分工的权重表。
+
+\begin{figure}[H]
+  \centering
+  \begin{tikzpicture}[x=1cm, y=1cm]
+    \fill[black!0] (0.0000,0.0000) rectangle ++(0.255,-0.255);
+    \fill[black!66] (0.2550,0.0000) rectangle ++(0.255,-0.255);
+    \fill[black!88] (0.5100,0.0000) rectangle ++(0.255,-0.255);
+    \fill[black!95] (0.7650,0.0000) rectangle ++(0.255,-0.255);
+    \fill[black!98] (1.0200,0.0000) rectangle ++(0.255,-0.255);
+    \fill[black!98] (1.2750,0.0000) rectangle ++(0.255,-0.255);
+    \fill[black!99] (1.5300,0.0000) rectangle ++(0.255,-0.255);
+    \fill[black!99] (1.7850,0.0000) rectangle ++(0.255,-0.255);
+    \fill[black!99] (2.0400,0.0000) rectangle ++(0.255,-0.255);
+    \fill[black!99] (2.2950,0.0000) rectangle ++(0.255,-0.255);
+    \fill[black!99] (2.5500,0.0000) rectangle ++(0.255,-0.255);
+    \fill[black!72] (0.0000,-0.2550) rectangle ++(0.255,-0.255);
+    \fill[black!17] (0.2550,-0.2550) rectangle ++(0.255,-0.255);
+    \fill[black!72] (0.5100,-0.2550) rectangle ++(0.255,-0.255);
+    \fill[black!90] (0.7650,-0.2550) rectangle ++(0.255,-0.255);
+    \fill[black!96] (1.0200,-0.2550) rectangle ++(0.255,-0.255);
+    \fill[black!98] (1.2750,-0.2550) rectangle ++(0.255,-0.255);
+    \fill[black!99] (1.5300,-0.2550) rectangle ++(0.255,-0.255);
+    \fill[black!99] (1.7850,-0.2550) rectangle ++(0.255,-0.255);
+    \fill[black!99] (2.0400,-0.2550) rectangle ++(0.255,-0.255);
+    \fill[black!99] (2.2950,-0.2550) rectangle ++(0.255,-0.255);
+    \fill[black!99] (2.5500,-0.2550) rectangle ++(0.255,-0.255);
+    \fill[black!91] (0.0000,-0.5100) rectangle ++(0.255,-0.255);
+    \fill[black!73] (0.2550,-0.5100) rectangle ++(0.255,-0.255);
+    \fill[black!21] (0.5100,-0.5100) rectangle ++(0.255,-0.255);
+    \fill[black!73] (0.7650,-0.5100) rectangle ++(0.255,-0.255);
+    \fill[black!91] (1.0200,-0.5100) rectangle ++(0.255,-0.255);
+    \fill[black!96] (1.2750,-0.5100) rectangle ++(0.255,-0.255);
+    \fill[black!98] (1.5300,-0.5100) rectangle ++(0.255,-0.255);
+    \fill[black!99] (1.7850,-0.5100) rectangle ++(0.255,-0.255);
+    \fill[black!99] (2.0400,-0.5100) rectangle ++(0.255,-0.255);
+    \fill[black!99] (2.2950,-0.5100) rectangle ++(0.255,-0.255);
+    \fill[black!99] (2.5500,-0.5100) rectangle ++(0.255,-0.255);
+    \fill[black!96] (0.0000,-0.7650) rectangle ++(0.255,-0.255);
+    \fill[black!91] (0.2550,-0.7650) rectangle ++(0.255,-0.255);
+    \fill[black!74] (0.5100,-0.7650) rectangle ++(0.255,-0.255);
+    \fill[black!23] (0.7650,-0.7650) rectangle ++(0.255,-0.255);
+    \fill[black!74] (1.0200,-0.7650) rectangle ++(0.255,-0.255);
+    \fill[black!91] (1.2750,-0.7650) rectangle ++(0.255,-0.255);
+    \fill[black!96] (1.5300,-0.7650) rectangle ++(0.255,-0.255);
+    \fill[black!98] (1.7850,-0.7650) rectangle ++(0.255,-0.255);
+    \fill[black!99] (2.0400,-0.7650) rectangle ++(0.255,-0.255);
+    \fill[black!99] (2.2950,-0.7650) rectangle ++(0.255,-0.255);
+    \fill[black!99] (2.5500,-0.7650) rectangle ++(0.255,-0.255);
+    \fill[black!98] (0.0000,-1.0200) rectangle ++(0.255,-0.255);
+    \fill[black!96] (0.2550,-1.0200) rectangle ++(0.255,-0.255);
+    \fill[black!91] (0.5100,-1.0200) rectangle ++(0.255,-0.255);
+    \fill[black!74] (0.7650,-1.0200) rectangle ++(0.255,-0.255);
+    \fill[black!23] (1.0200,-1.0200) rectangle ++(0.255,-0.255);
+    \fill[black!74] (1.2750,-1.0200) rectangle ++(0.255,-0.255);
+    \fill[black!91] (1.5300,-1.0200) rectangle ++(0.255,-0.255);
+    \fill[black!96] (1.7850,-1.0200) rectangle ++(0.255,-0.255);
+    \fill[black!98] (2.0400,-1.0200) rectangle ++(0.255,-0.255);
+    \fill[black!99] (2.2950,-1.0200) rectangle ++(0.255,-0.255);
+    \fill[black!99] (2.5500,-1.0200) rectangle ++(0.255,-0.255);
+    \fill[black!99] (0.0000,-1.2750) rectangle ++(0.255,-0.255);
+    \fill[black!98] (0.2550,-1.2750) rectangle ++(0.255,-0.255);
+    \fill[black!96] (0.5100,-1.2750) rectangle ++(0.255,-0.255);
+    \fill[black!91] (0.7650,-1.2750) rectangle ++(0.255,-0.255);
+    \fill[black!74] (1.0200,-1.2750) rectangle ++(0.255,-0.255);
+    \fill[black!23] (1.2750,-1.2750) rectangle ++(0.255,-0.255);
+    \fill[black!74] (1.5300,-1.2750) rectangle ++(0.255,-0.255);
+    \fill[black!91] (1.7850,-1.2750) rectangle ++(0.255,-0.255);
+    \fill[black!96] (2.0400,-1.2750) rectangle ++(0.255,-0.255);
+    \fill[black!98] (2.2950,-1.2750) rectangle ++(0.255,-0.255);
+    \fill[black!99] (2.5500,-1.2750) rectangle ++(0.255,-0.255);
+    \fill[black!99] (0.0000,-1.5300) rectangle ++(0.255,-0.255);
+    \fill[black!99] (0.2550,-1.5300) rectangle ++(0.255,-0.255);
+    \fill[black!98] (0.5100,-1.5300) rectangle ++(0.255,-0.255);
+    \fill[black!96] (0.7650,-1.5300) rectangle ++(0.255,-0.255);
+    \fill[black!91] (1.0200,-1.5300) rectangle ++(0.255,-0.255);
+    \fill[black!74] (1.2750,-1.5300) rectangle ++(0.255,-0.255);
+    \fill[black!23] (1.5300,-1.5300) rectangle ++(0.255,-0.255);
+    \fill[black!74] (1.7850,-1.5300) rectangle ++(0.255,-0.255);
+    \fill[black!91] (2.0400,-1.5300) rectangle ++(0.255,-0.255);
+    \fill[black!96] (2.2950,-1.5300) rectangle ++(0.255,-0.255);
+    \fill[black!98] (2.5500,-1.5300) rectangle ++(0.255,-0.255);
+    \fill[black!99] (0.0000,-1.7850) rectangle ++(0.255,-0.255);
+    \fill[black!99] (0.2550,-1.7850) rectangle ++(0.255,-0.255);
+    \fill[black!99] (0.5100,-1.7850) rectangle ++(0.255,-0.255);
+    \fill[black!98] (0.7650,-1.7850) rectangle ++(0.255,-0.255);
+    \fill[black!96] (1.0200,-1.7850) rectangle ++(0.255,-0.255);
+    \fill[black!91] (1.2750,-1.7850) rectangle ++(0.255,-0.255);
+    \fill[black!74] (1.5300,-1.7850) rectangle ++(0.255,-0.255);
+    \fill[black!23] (1.7850,-1.7850) rectangle ++(0.255,-0.255);
+    \fill[black!74] (2.0400,-1.7850) rectangle ++(0.255,-0.255);
+    \fill[black!91] (2.2950,-1.7850) rectangle ++(0.255,-0.255);
+    \fill[black!96] (2.5500,-1.7850) rectangle ++(0.255,-0.255);
+    \fill[black!99] (0.0000,-2.0400) rectangle ++(0.255,-0.255);
+    \fill[black!99] (0.2550,-2.0400) rectangle ++(0.255,-0.255);
+    \fill[black!99] (0.5100,-2.0400) rectangle ++(0.255,-0.255);
+    \fill[black!99] (0.7650,-2.0400) rectangle ++(0.255,-0.255);
+    \fill[black!98] (1.0200,-2.0400) rectangle ++(0.255,-0.255);
+    \fill[black!96] (1.2750,-2.0400) rectangle ++(0.255,-0.255);
+    \fill[black!91] (1.5300,-2.0400) rectangle ++(0.255,-0.255);
+    \fill[black!73] (1.7850,-2.0400) rectangle ++(0.255,-0.255);
+    \fill[black!21] (2.0400,-2.0400) rectangle ++(0.255,-0.255);
+    \fill[black!73] (2.2950,-2.0400) rectangle ++(0.255,-0.255);
+    \fill[black!91] (2.5500,-2.0400) rectangle ++(0.255,-0.255);
+    \fill[black!99] (0.0000,-2.2950) rectangle ++(0.255,-0.255);
+    \fill[black!99] (0.2550,-2.2950) rectangle ++(0.255,-0.255);
+    \fill[black!99] (0.5100,-2.2950) rectangle ++(0.255,-0.255);
+    \fill[black!99] (0.7650,-2.2950) rectangle ++(0.255,-0.255);
+    \fill[black!99] (1.0200,-2.2950) rectangle ++(0.255,-0.255);
+    \fill[black!98] (1.2750,-2.2950) rectangle ++(0.255,-0.255);
+    \fill[black!96] (1.5300,-2.2950) rectangle ++(0.255,-0.255);
+    \fill[black!90] (1.7850,-2.2950) rectangle ++(0.255,-0.255);
+    \fill[black!72] (2.0400,-2.2950) rectangle ++(0.255,-0.255);
+    \fill[black!17] (2.2950,-2.2950) rectangle ++(0.255,-0.255);
+    \fill[black!72] (2.5500,-2.2950) rectangle ++(0.255,-0.255);
+    \fill[black!99] (0.0000,-2.5500) rectangle ++(0.255,-0.255);
+    \fill[black!99] (0.2550,-2.5500) rectangle ++(0.255,-0.255);
+    \fill[black!99] (0.5100,-2.5500) rectangle ++(0.255,-0.255);
+    \fill[black!99] (0.7650,-2.5500) rectangle ++(0.255,-0.255);
+    \fill[black!99] (1.0200,-2.5500) rectangle ++(0.255,-0.255);
+    \fill[black!98] (1.2750,-2.5500) rectangle ++(0.255,-0.255);
+    \fill[black!98] (1.5300,-2.5500) rectangle ++(0.255,-0.255);
+    \fill[black!95] (1.7850,-2.5500) rectangle ++(0.255,-0.255);
+    \fill[black!88] (2.0400,-2.5500) rectangle ++(0.255,-0.255);
+    \fill[black!66] (2.2950,-2.5500) rectangle ++(0.255,-0.255);
+    \fill[black!0] (2.5500,-2.5500) rectangle ++(0.255,-0.255);
+    \draw[black!30, line width=0.15pt] (0.000,0) grid[step=0.255] (2.805,-2.805);
+    \draw[black!65, line width=0.5pt] (0.000,0) rectangle (2.805,-2.805);
+    \node[font=\small, anchor=south] at (1.403,0.16) {注意力头 \#1};
+    \node[font=\footnotesize, anchor=north] at (1.403,-2.985) {看邻域};
+    \fill[black!0] (4.3550,0.0000) rectangle ++(0.255,-0.255);
+    \fill[black!91] (4.6100,0.0000) rectangle ++(0.255,-0.255);
+    \fill[black!99] (4.8650,0.0000) rectangle ++(0.255,-0.255);
+    \fill[black!100] (5.1200,0.0000) rectangle ++(0.255,-0.255);
+    \fill[black!100] (5.3750,0.0000) rectangle ++(0.255,-0.255);
+    \fill[black!100] (5.6300,0.0000) rectangle ++(0.255,-0.255);
+    \fill[black!100] (5.8850,0.0000) rectangle ++(0.255,-0.255);
+    \fill[black!100] (6.1400,0.0000) rectangle ++(0.255,-0.255);
+    \fill[black!100] (6.3950,0.0000) rectangle ++(0.255,-0.255);
+    \fill[black!100] (6.6500,0.0000) rectangle ++(0.255,-0.255);
+    \fill[black!100] (6.9050,0.0000) rectangle ++(0.255,-0.255);
+    \fill[black!92] (4.3550,-0.2550) rectangle ++(0.255,-0.255);
+    \fill[black!7] (4.6100,-0.2550) rectangle ++(0.255,-0.255);
+    \fill[black!92] (4.8650,-0.2550) rectangle ++(0.255,-0.255);
+    \fill[black!99] (5.1200,-0.2550) rectangle ++(0.255,-0.255);
+    \fill[black!100] (5.3750,-0.2550) rectangle ++(0.255,-0.255);
+    \fill[black!100] (5.6300,-0.2550) rectangle ++(0.255,-0.255);
+    \fill[black!100] (5.8850,-0.2550) rectangle ++(0.255,-0.255);
+    \fill[black!100] (6.1400,-0.2550) rectangle ++(0.255,-0.255);
+    \fill[black!100] (6.3950,-0.2550) rectangle ++(0.255,-0.255);
+    \fill[black!100] (6.6500,-0.2550) rectangle ++(0.255,-0.255);
+    \fill[black!100] (6.9050,-0.2550) rectangle ++(0.255,-0.255);
+    \fill[black!99] (4.3550,-0.5100) rectangle ++(0.255,-0.255);
+    \fill[black!92] (4.6100,-0.5100) rectangle ++(0.255,-0.255);
+    \fill[black!7] (4.8650,-0.5100) rectangle ++(0.255,-0.255);
+    \fill[black!92] (5.1200,-0.5100) rectangle ++(0.255,-0.255);
+    \fill[black!99] (5.3750,-0.5100) rectangle ++(0.255,-0.255);
+    \fill[black!100] (5.6300,-0.5100) rectangle ++(0.255,-0.255);
+    \fill[black!100] (5.8850,-0.5100) rectangle ++(0.255,-0.255);
+    \fill[black!100] (6.1400,-0.5100) rectangle ++(0.255,-0.255);
+    \fill[black!100] (6.3950,-0.5100) rectangle ++(0.255,-0.255);
+    \fill[black!100] (6.6500,-0.5100) rectangle ++(0.255,-0.255);
+    \fill[black!100] (6.9050,-0.5100) rectangle ++(0.255,-0.255);
+    \fill[black!100] (4.3550,-0.7650) rectangle ++(0.255,-0.255);
+    \fill[black!99] (4.6100,-0.7650) rectangle ++(0.255,-0.255);
+    \fill[black!92] (4.8650,-0.7650) rectangle ++(0.255,-0.255);
+    \fill[black!7] (5.1200,-0.7650) rectangle ++(0.255,-0.255);
+    \fill[black!92] (5.3750,-0.7650) rectangle ++(0.255,-0.255);
+    \fill[black!99] (5.6300,-0.7650) rectangle ++(0.255,-0.255);
+    \fill[black!100] (5.8850,-0.7650) rectangle ++(0.255,-0.255);
+    \fill[black!100] (6.1400,-0.7650) rectangle ++(0.255,-0.255);
+    \fill[black!100] (6.3950,-0.7650) rectangle ++(0.255,-0.255);
+    \fill[black!100] (6.6500,-0.7650) rectangle ++(0.255,-0.255);
+    \fill[black!100] (6.9050,-0.7650) rectangle ++(0.255,-0.255);
+    \fill[black!100] (4.3550,-1.0200) rectangle ++(0.255,-0.255);
+    \fill[black!100] (4.6100,-1.0200) rectangle ++(0.255,-0.255);
+    \fill[black!99] (4.8650,-1.0200) rectangle ++(0.255,-0.255);
+    \fill[black!92] (5.1200,-1.0200) rectangle ++(0.255,-0.255);
+    \fill[black!7] (5.3750,-1.0200) rectangle ++(0.255,-0.255);
+    \fill[black!92] (5.6300,-1.0200) rectangle ++(0.255,-0.255);
+    \fill[black!99] (5.8850,-1.0200) rectangle ++(0.255,-0.255);
+    \fill[black!100] (6.1400,-1.0200) rectangle ++(0.255,-0.255);
+    \fill[black!100] (6.3950,-1.0200) rectangle ++(0.255,-0.255);
+    \fill[black!100] (6.6500,-1.0200) rectangle ++(0.255,-0.255);
+    \fill[black!100] (6.9050,-1.0200) rectangle ++(0.255,-0.255);
+    \fill[black!100] (4.3550,-1.2750) rectangle ++(0.255,-0.255);
+    \fill[black!100] (4.6100,-1.2750) rectangle ++(0.255,-0.255);
+    \fill[black!100] (4.8650,-1.2750) rectangle ++(0.255,-0.255);
+    \fill[black!99] (5.1200,-1.2750) rectangle ++(0.255,-0.255);
+    \fill[black!92] (5.3750,-1.2750) rectangle ++(0.255,-0.255);
+    \fill[black!7] (5.6300,-1.2750) rectangle ++(0.255,-0.255);
+    \fill[black!92] (5.8850,-1.2750) rectangle ++(0.255,-0.255);
+    \fill[black!99] (6.1400,-1.2750) rectangle ++(0.255,-0.255);
+    \fill[black!100] (6.3950,-1.2750) rectangle ++(0.255,-0.255);
+    \fill[black!100] (6.6500,-1.2750) rectangle ++(0.255,-0.255);
+    \fill[black!100] (6.9050,-1.2750) rectangle ++(0.255,-0.255);
+    \fill[black!100] (4.3550,-1.5300) rectangle ++(0.255,-0.255);
+    \fill[black!100] (4.6100,-1.5300) rectangle ++(0.255,-0.255);
+    \fill[black!100] (4.8650,-1.5300) rectangle ++(0.255,-0.255);
+    \fill[black!100] (5.1200,-1.5300) rectangle ++(0.255,-0.255);
+    \fill[black!99] (5.3750,-1.5300) rectangle ++(0.255,-0.255);
+    \fill[black!92] (5.6300,-1.5300) rectangle ++(0.255,-0.255);
+    \fill[black!7] (5.8850,-1.5300) rectangle ++(0.255,-0.255);
+    \fill[black!92] (6.1400,-1.5300) rectangle ++(0.255,-0.255);
+    \fill[black!99] (6.3950,-1.5300) rectangle ++(0.255,-0.255);
+    \fill[black!100] (6.6500,-1.5300) rectangle ++(0.255,-0.255);
+    \fill[black!100] (6.9050,-1.5300) rectangle ++(0.255,-0.255);
+    \fill[black!100] (4.3550,-1.7850) rectangle ++(0.255,-0.255);
+    \fill[black!100] (4.6100,-1.7850) rectangle ++(0.255,-0.255);
+    \fill[black!100] (4.8650,-1.7850) rectangle ++(0.255,-0.255);
+    \fill[black!100] (5.1200,-1.7850) rectangle ++(0.255,-0.255);
+    \fill[black!100] (5.3750,-1.7850) rectangle ++(0.255,-0.255);
+    \fill[black!99] (5.6300,-1.7850) rectangle ++(0.255,-0.255);
+    \fill[black!92] (5.8850,-1.7850) rectangle ++(0.255,-0.255);
+    \fill[black!7] (6.1400,-1.7850) rectangle ++(0.255,-0.255);
+    \fill[black!92] (6.3950,-1.7850) rectangle ++(0.255,-0.255);
+    \fill[black!99] (6.6500,-1.7850) rectangle ++(0.255,-0.255);
+    \fill[black!100] (6.9050,-1.7850) rectangle ++(0.255,-0.255);
+    \fill[black!100] (4.3550,-2.0400) rectangle ++(0.255,-0.255);
+    \fill[black!100] (4.6100,-2.0400) rectangle ++(0.255,-0.255);
+    \fill[black!100] (4.8650,-2.0400) rectangle ++(0.255,-0.255);
+    \fill[black!100] (5.1200,-2.0400) rectangle ++(0.255,-0.255);
+    \fill[black!100] (5.3750,-2.0400) rectangle ++(0.255,-0.255);
+    \fill[black!100] (5.6300,-2.0400) rectangle ++(0.255,-0.255);
+    \fill[black!99] (5.8850,-2.0400) rectangle ++(0.255,-0.255);
+    \fill[black!92] (6.1400,-2.0400) rectangle ++(0.255,-0.255);
+    \fill[black!7] (6.3950,-2.0400) rectangle ++(0.255,-0.255);
+    \fill[black!92] (6.6500,-2.0400) rectangle ++(0.255,-0.255);
+    \fill[black!99] (6.9050,-2.0400) rectangle ++(0.255,-0.255);
+    \fill[black!100] (4.3550,-2.2950) rectangle ++(0.255,-0.255);
+    \fill[black!100] (4.6100,-2.2950) rectangle ++(0.255,-0.255);
+    \fill[black!100] (4.8650,-2.2950) rectangle ++(0.255,-0.255);
+    \fill[black!100] (5.1200,-2.2950) rectangle ++(0.255,-0.255);
+    \fill[black!100] (5.3750,-2.2950) rectangle ++(0.255,-0.255);
+    \fill[black!100] (5.6300,-2.2950) rectangle ++(0.255,-0.255);
+    \fill[black!100] (5.8850,-2.2950) rectangle ++(0.255,-0.255);
+    \fill[black!99] (6.1400,-2.2950) rectangle ++(0.255,-0.255);
+    \fill[black!92] (6.3950,-2.2950) rectangle ++(0.255,-0.255);
+    \fill[black!7] (6.6500,-2.2950) rectangle ++(0.255,-0.255);
+    \fill[black!92] (6.9050,-2.2950) rectangle ++(0.255,-0.255);
+    \fill[black!100] (4.3550,-2.5500) rectangle ++(0.255,-0.255);
+    \fill[black!100] (4.6100,-2.5500) rectangle ++(0.255,-0.255);
+    \fill[black!100] (4.8650,-2.5500) rectangle ++(0.255,-0.255);
+    \fill[black!100] (5.1200,-2.5500) rectangle ++(0.255,-0.255);
+    \fill[black!100] (5.3750,-2.5500) rectangle ++(0.255,-0.255);
+    \fill[black!100] (5.6300,-2.5500) rectangle ++(0.255,-0.255);
+    \fill[black!100] (5.8850,-2.5500) rectangle ++(0.255,-0.255);
+    \fill[black!100] (6.1400,-2.5500) rectangle ++(0.255,-0.255);
+    \fill[black!99] (6.3950,-2.5500) rectangle ++(0.255,-0.255);
+    \fill[black!91] (6.6500,-2.5500) rectangle ++(0.255,-0.255);
+    \fill[black!0] (6.9050,-2.5500) rectangle ++(0.255,-0.255);
+    \draw[black!30, line width=0.15pt] (4.355,0) grid[step=0.255] (7.160,-2.805);
+    \draw[black!65, line width=0.5pt] (4.355,0) rectangle (7.160,-2.805);
+    \node[font=\small, anchor=south] at (5.758,0.16) {注意力头 \#2};
+    \node[font=\footnotesize, anchor=north] at (5.758,-2.985) {看自己};
+    \fill[black!15] (8.7100,0.0000) rectangle ++(0.255,-0.255);
+    \fill[black!96] (8.9650,0.0000) rectangle ++(0.255,-0.255);
+    \fill[black!96] (9.2200,0.0000) rectangle ++(0.255,-0.255);
+    \fill[black!96] (9.4750,0.0000) rectangle ++(0.255,-0.255);
+    \fill[black!96] (9.7300,0.0000) rectangle ++(0.255,-0.255);
+    \fill[black!96] (9.9850,0.0000) rectangle ++(0.255,-0.255);
+    \fill[black!96] (10.2400,0.0000) rectangle ++(0.255,-0.255);
+    \fill[black!96] (10.4950,0.0000) rectangle ++(0.255,-0.255);
+    \fill[black!96] (10.7500,0.0000) rectangle ++(0.255,-0.255);
+    \fill[black!96] (11.0050,0.0000) rectangle ++(0.255,-0.255);
+    \fill[black!69] (11.2600,0.0000) rectangle ++(0.255,-0.255);
+    \fill[black!94] (8.7100,-0.2550) rectangle ++(0.255,-0.255);
+    \fill[black!94] (8.9650,-0.2550) rectangle ++(0.255,-0.255);
+    \fill[black!46] (9.2200,-0.2550) rectangle ++(0.255,-0.255);
+    \fill[black!94] (9.4750,-0.2550) rectangle ++(0.255,-0.255);
+    \fill[black!94] (9.7300,-0.2550) rectangle ++(0.255,-0.255);
+    \fill[black!94] (9.9850,-0.2550) rectangle ++(0.255,-0.255);
+    \fill[black!94] (10.2400,-0.2550) rectangle ++(0.255,-0.255);
+    \fill[black!94] (10.4950,-0.2550) rectangle ++(0.255,-0.255);
+    \fill[black!94] (10.7500,-0.2550) rectangle ++(0.255,-0.255);
+    \fill[black!94] (11.0050,-0.2550) rectangle ++(0.255,-0.255);
+    \fill[black!54] (11.2600,-0.2550) rectangle ++(0.255,-0.255);
+    \fill[black!97] (8.7100,-0.5100) rectangle ++(0.255,-0.255);
+    \fill[black!97] (8.9650,-0.5100) rectangle ++(0.255,-0.255);
+    \fill[black!54] (9.2200,-0.5100) rectangle ++(0.255,-0.255);
+    \fill[black!97] (9.4750,-0.5100) rectangle ++(0.255,-0.255);
+    \fill[black!97] (9.7300,-0.5100) rectangle ++(0.255,-0.255);
+    \fill[black!97] (9.9850,-0.5100) rectangle ++(0.255,-0.255);
+    \fill[black!97] (10.2400,-0.5100) rectangle ++(0.255,-0.255);
+    \fill[black!97] (10.4950,-0.5100) rectangle ++(0.255,-0.255);
+    \fill[black!97] (10.7500,-0.5100) rectangle ++(0.255,-0.255);
+    \fill[black!97] (11.0050,-0.5100) rectangle ++(0.255,-0.255);
+    \fill[black!15] (11.2600,-0.5100) rectangle ++(0.255,-0.255);
+    \fill[black!95] (8.7100,-0.7650) rectangle ++(0.255,-0.255);
+    \fill[black!95] (8.9650,-0.7650) rectangle ++(0.255,-0.255);
+    \fill[black!95] (9.2200,-0.7650) rectangle ++(0.255,-0.255);
+    \fill[black!95] (9.4750,-0.7650) rectangle ++(0.255,-0.255);
+    \fill[black!31] (9.7300,-0.7650) rectangle ++(0.255,-0.255);
+    \fill[black!62] (9.9850,-0.7650) rectangle ++(0.255,-0.255);
+    \fill[black!95] (10.2400,-0.7650) rectangle ++(0.255,-0.255);
+    \fill[black!95] (10.4950,-0.7650) rectangle ++(0.255,-0.255);
+    \fill[black!95] (10.7500,-0.7650) rectangle ++(0.255,-0.255);
+    \fill[black!95] (11.0050,-0.7650) rectangle ++(0.255,-0.255);
+    \fill[black!95] (11.2600,-0.7650) rectangle ++(0.255,-0.255);
+    \fill[black!94] (8.7100,-1.0200) rectangle ++(0.255,-0.255);
+    \fill[black!94] (8.9650,-1.0200) rectangle ++(0.255,-0.255);
+    \fill[black!94] (9.2200,-1.0200) rectangle ++(0.255,-0.255);
+    \fill[black!94] (9.4750,-1.0200) rectangle ++(0.255,-0.255);
+    \fill[black!94] (9.7300,-1.0200) rectangle ++(0.255,-0.255);
+    \fill[black!54] (9.9850,-1.0200) rectangle ++(0.255,-0.255);
+    \fill[black!94] (10.2400,-1.0200) rectangle ++(0.255,-0.255);
+    \fill[black!94] (10.4950,-1.0200) rectangle ++(0.255,-0.255);
+    \fill[black!94] (10.7500,-1.0200) rectangle ++(0.255,-0.255);
+    \fill[black!94] (11.0050,-1.0200) rectangle ++(0.255,-0.255);
+    \fill[black!46] (11.2600,-1.0200) rectangle ++(0.255,-0.255);
+    \fill[black!94] (8.7100,-1.2750) rectangle ++(0.255,-0.255);
+    \fill[black!94] (8.9650,-1.2750) rectangle ++(0.255,-0.255);
+    \fill[black!94] (9.2200,-1.2750) rectangle ++(0.255,-0.255);
+    \fill[black!94] (9.4750,-1.2750) rectangle ++(0.255,-0.255);
+    \fill[black!38] (9.7300,-1.2750) rectangle ++(0.255,-0.255);
+    \fill[black!94] (9.9850,-1.2750) rectangle ++(0.255,-0.255);
+    \fill[black!94] (10.2400,-1.2750) rectangle ++(0.255,-0.255);
+    \fill[black!94] (10.4950,-1.2750) rectangle ++(0.255,-0.255);
+    \fill[black!94] (10.7500,-1.2750) rectangle ++(0.255,-0.255);
+    \fill[black!94] (11.0050,-1.2750) rectangle ++(0.255,-0.255);
+    \fill[black!62] (11.2600,-1.2750) rectangle ++(0.255,-0.255);
+    \fill[black!95] (8.7100,-1.5300) rectangle ++(0.255,-0.255);
+    \fill[black!95] (8.9650,-1.5300) rectangle ++(0.255,-0.255);
+    \fill[black!95] (9.2200,-1.5300) rectangle ++(0.255,-0.255);
+    \fill[black!95] (9.4750,-1.5300) rectangle ++(0.255,-0.255);
+    \fill[black!95] (9.7300,-1.5300) rectangle ++(0.255,-0.255);
+    \fill[black!95] (9.9850,-1.5300) rectangle ++(0.255,-0.255);
+    \fill[black!95] (10.2400,-1.5300) rectangle ++(0.255,-0.255);
+    \fill[black!95] (10.4950,-1.5300) rectangle ++(0.255,-0.255);
+    \fill[black!69] (10.7500,-1.5300) rectangle ++(0.255,-0.255);
+    \fill[black!95] (11.0050,-1.5300) rectangle ++(0.255,-0.255);
+    \fill[black!23] (11.2600,-1.5300) rectangle ++(0.255,-0.255);
+    \fill[black!94] (8.7100,-1.7850) rectangle ++(0.255,-0.255);
+    \fill[black!94] (8.9650,-1.7850) rectangle ++(0.255,-0.255);
+    \fill[black!94] (9.2200,-1.7850) rectangle ++(0.255,-0.255);
+    \fill[black!94] (9.4750,-1.7850) rectangle ++(0.255,-0.255);
+    \fill[black!94] (9.7300,-1.7850) rectangle ++(0.255,-0.255);
+    \fill[black!94] (9.9850,-1.7850) rectangle ++(0.255,-0.255);
+    \fill[black!94] (10.2400,-1.7850) rectangle ++(0.255,-0.255);
+    \fill[black!94] (10.4950,-1.7850) rectangle ++(0.255,-0.255);
+    \fill[black!31] (10.7500,-1.7850) rectangle ++(0.255,-0.255);
+    \fill[black!94] (11.0050,-1.7850) rectangle ++(0.255,-0.255);
+    \fill[black!69] (11.2600,-1.7850) rectangle ++(0.255,-0.255);
+    \fill[black!94] (8.7100,-2.0400) rectangle ++(0.255,-0.255);
+    \fill[black!94] (8.9650,-2.0400) rectangle ++(0.255,-0.255);
+    \fill[black!94] (9.2200,-2.0400) rectangle ++(0.255,-0.255);
+    \fill[black!94] (9.4750,-2.0400) rectangle ++(0.255,-0.255);
+    \fill[black!94] (9.7300,-2.0400) rectangle ++(0.255,-0.255);
+    \fill[black!94] (9.9850,-2.0400) rectangle ++(0.255,-0.255);
+    \fill[black!94] (10.2400,-2.0400) rectangle ++(0.255,-0.255);
+    \fill[black!77] (10.4950,-2.0400) rectangle ++(0.255,-0.255);
+    \fill[black!94] (10.7500,-2.0400) rectangle ++(0.255,-0.255);
+    \fill[black!94] (11.0050,-2.0400) rectangle ++(0.255,-0.255);
+    \fill[black!23] (11.2600,-2.0400) rectangle ++(0.255,-0.255);
+    \fill[black!93] (8.7100,-2.2950) rectangle ++(0.255,-0.255);
+    \fill[black!93] (8.9650,-2.2950) rectangle ++(0.255,-0.255);
+    \fill[black!93] (9.2200,-2.2950) rectangle ++(0.255,-0.255);
+    \fill[black!93] (9.4750,-2.2950) rectangle ++(0.255,-0.255);
+    \fill[black!93] (9.7300,-2.2950) rectangle ++(0.255,-0.255);
+    \fill[black!93] (9.9850,-2.2950) rectangle ++(0.255,-0.255);
+    \fill[black!93] (10.2400,-2.2950) rectangle ++(0.255,-0.255);
+    \fill[black!93] (10.4950,-2.2950) rectangle ++(0.255,-0.255);
+    \fill[black!93] (10.7500,-2.2950) rectangle ++(0.255,-0.255);
+    \fill[black!93] (11.0050,-2.2950) rectangle ++(0.255,-0.255);
+    \fill[black!15] (11.2600,-2.2950) rectangle ++(0.255,-0.255);
+    \fill[black!97] (8.7100,-2.5500) rectangle ++(0.255,-0.255);
+    \fill[black!97] (8.9650,-2.5500) rectangle ++(0.255,-0.255);
+    \fill[black!97] (9.2200,-2.5500) rectangle ++(0.255,-0.255);
+    \fill[black!97] (9.4750,-2.5500) rectangle ++(0.255,-0.255);
+    \fill[black!97] (9.7300,-2.5500) rectangle ++(0.255,-0.255);
+    \fill[black!97] (9.9850,-2.5500) rectangle ++(0.255,-0.255);
+    \fill[black!77] (10.2400,-2.5500) rectangle ++(0.255,-0.255);
+    \fill[black!97] (10.4950,-2.5500) rectangle ++(0.255,-0.255);
+    \fill[black!97] (10.7500,-2.5500) rectangle ++(0.255,-0.255);
+    \fill[black!97] (11.0050,-2.5500) rectangle ++(0.255,-0.255);
+    \fill[black!0] (11.2600,-2.5500) rectangle ++(0.255,-0.255);
+    \draw[black!30, line width=0.15pt] (8.710,0) grid[step=0.255] (11.515,-2.805);
+    \draw[black!65, line width=0.5pt] (8.710,0) rectangle (11.515,-2.805);
+    \node[font=\small, anchor=south] at (10.113,0.16) {注意力头 \#3};
+    \node[font=\footnotesize, anchor=north] at (10.113,-2.985) {看语义};
+    \node[font=\footnotesize, anchor=north] at (5.758,-3.655) {纵轴 ＝ 查询（发出询问的词），横轴 ＝ 键（被询问的词），两者顺序与图~\ref{fig:attn-arc} 相同};
+  \end{tikzpicture}
+  \caption{三个注意力头的权重矩阵（同一句话、同一组输入，只是投影矩阵不同）。第 $i$ 行第 $j$ 列的格子越黑，表示第 $i$ 个词从第 $j$ 个词取走的成分越多（每一行的权重之和都等于 $1$，所以三个矩阵都由 11 行「总量相同、分布不同」的灰度构成）。三个头呈现出三种完全不同的形态：头~1 的权重挤在主对角线附近的一条窄带里，只关心左邻右舍；头~2 几乎只点亮对角线，等于把每个词自身的信息原样保留下来；头~3 高度稀疏，大多数格子都很浅，只有少数几处被涂黑，对应着「修饰语$\to$中心语」这类跨越较远距离的语义依赖。这三张图没有任何一处是人工设计的，它们都是训练之后自己分化出来的。}
+  \label{fig:multihead}
+\end{figure}
+
+
+图~\ref{fig:multihead} 把三个头的权重矩阵并排画了出来。三张图的输入完全相同，只是投影矩阵不同，于是分化出了三种截然不同的「看句子的方式」：
+
+\begin{itemize}
+  \item \textbf{头 1：看邻域。}权重集中在主对角线附近的一个窄带里，越靠近对角线越黑。这个头显然在关心「这个位置的左邻右舍是谁」，它负责的是局部的、位置敏感的信息。
+  \item \textbf{头 2：看自己。}几乎只有对角线被点亮，别的格子都近乎白色。这个头把绝大部分权重留给了词本身，作用接近于「把原向量保留下来」——在深层网络里，这类头常常充当一条让信息直通到底的通道。
+  \item \textbf{头 3：看语义。}绝大多数格子都很浅，只有少数几处被涂黑，形状毫无规律可言。对照图~\ref{fig:attn-arc} 可以看出，这些被涂黑的位置恰恰对应「修饰语$\to$中心语」这类跨越较远距离的依赖关系。这个头负责的是句法层面的、位置不敏感的信息。
+\end{itemize}
+
+三张图放在一起看，最值得记住的并不是某一张图的具体形状，而是它们之间那种明确的分工：没有谁规定头 1 必须看邻域、头 3 必须看语义，这些分工是训练结束之后自然浮现出来的。人只提供了「有 $h$ 份并行的、各自独立的子空间」这个结构，其余的交给数据去填。这也是现代神经网络一个反复出现的特征：结构由人给出，功能由训练涌现。
+
+\subsection{顺序信息从哪里来}
+
+注意力还有一个不太显现的问题。把上面所有式子看一遍会发现，交换第 $i$ 个词与第 $j$ 个词，得到的权重表只是把第 $i$、$j$ 两行两列跟着交换，其余完全不变，输出也只是跟着换行。换句话说，纯粹的注意力机制分辨不出「我听说你」与「你听说我」——它对词的顺序是「无感」的，这是一种置换等变性。
+
+但语言显然是有顺序的。解决办法很直接：在把词送进网络之前，先给每个位置上的向量叠加一个只与该位置有关的向量（位置编码，positional encoding）。叠加上去之后，同一个词出现在第 $3$ 位与出现在第 $7$ 位，拿到的输入向量就不再相同，交换两个词也就不再是一个对称操作了。顺序信息不靠注意力自己产生，而是靠输入端的这一点人为注入。
+
+除位置编码之外，真正让注意力能够一层层堆叠起来的还有两个部件：残差连接与层归一化。前者把子层的输入直接加到它的输出上，使梯度有一条畅通的旁路，网络才敢往深处堆；后者把每一层激活值的尺度稳定下来，使训练不至于因为数值的漂移而失控。它们本身并不涉及什么新的数学思想，但在工程上几乎和注意力本身一样重要。
+
+\subsection{小结}
+
+这一节的内容可以压成一句话：每个词向全句发问，按回答的吻合程度加权，把全句的信息取一部分回来。具体地说，一个词被投影成查询、键、值三个向量；查询与键的内积给出「吻合程度」，除以 $\sqrt{d_k}$ 并用 softmax 归一化后得到一组和为 $1$ 的权重；权重再对值向量做加权平均，就得到了这个位置融入了上下文的新表示。矩阵展开之后，整个过程只是四步矩阵乘法，没有任何需要人工设定的规则。
+
+从这个角度看，注意力并不是什么神秘的机制，它是一种可学习的、随内容而变的加权平均；它的力量来自于「每一个位置都能直接看到所有其他位置」这一件事——无论相距多远，中间都只隔一次内积。多个头并行，则是在同一层里同时保存了邻域、自身、语义等多种关系。而顺序信息，需要另外由位置编码注入。
+
+回过头再看图~\ref{fig:attn-arc}：一排词向下排的每一个词发问，绝大多数回答被轻轻带过，只有少数几条线被加粗。机器对一句话的理解，就发生在这一问一答之间。
 
 \end{document}
