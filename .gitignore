@@ -19,6 +19,7 @@
 .build/
 out/
 build/
+backup/
 
 # 编辑器与系统
 .vscode/

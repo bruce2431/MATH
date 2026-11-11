@@ -23,6 +23,14 @@ xelatex main.tex
 
 产物为 `main.pdf`。`main.tex` 首行有 `% !TEX program = xelatex`，TeXstudio / VS Code (LaTeX Workshop) 会直接识别编译器。
 
+**整本编译**（自动使用仓库内便携 MiKTeX/Perl，Pj18 网页与命令行同一套链路）：
+
+```bash
+python ../.claude/skills/latex-writing/scripts/compile_book.py MATH
+```
+
+网页端预览/编译与「点 PDF 跳源码」所需的 `main.synctex.gz` 也由该命令生成（默认带 `-synctex=1`）。
+
 **依赖宏包**：`ctex`、`amsmath`、`amssymb`、`amsthm`、`graphicx`、`hyperref`、`booktabs`、`array`、`tikz`（含 `tikz-cd`、`arrows.meta`、`positioning`、`calc` 库）、`multicol`、`wrapfig`、`float`、`subcaption`、`needspace`、`xcolor`。
 
 ## 内容结构
@@ -40,15 +48,18 @@ xelatex main.tex
 ## 目录结构
 
 ```
-main.tex        全文（含导言区与全部章节）
-main.pdf        编译成品
-image/          全部插图，由 main.tex 里的 \includegraphics{image/文件名} 引用
-.build/         编译中间产物（.aux / .log / .out / .toc / .xdv 等），可整个删掉重新编译
+main.tex          唯一的源文件：导言区 + 全部章节正文（不拆文件）
+main.pdf          成品（Pj18 网页显示的就是这一份）
+main.synctex.gz   点 PDF 跳源码用（与 main.pdf 一同生成）
+image/            全部插图，正文以 image/文件名 相对引用
+.build/           编译中间产物（aux/log/out/toc/xdv/floria 分块缓存），可整个删掉重编
+backup/           历史 .tex 备份（main.tex.bak*），不参与编译
 ```
 
 ## 说明
 
 - 当前版本 **v1.1.0**（2026-10-11）：新增「神经网络 · 注意力机制」一节；编译引擎由 LuaLaTeX 改为 XeLaTeX（xelatex 下 `ctex` 走 xeCJK，省掉 luatexja 每次编译约 21 秒的固定开销）。
+- 2026-10-25 目录整理：历史 `.tex` 备份收进 `backup/`（不参与编译），README 的目录结构改为与实际单文件布局一致。
 - 所有插图集中在 `image/` 目录下，`main.tex` 以 `image/文件名` 引用；改动插图不会自动被 LaTeX 感知，必要时先删旧的 `.aux` 再编。
 - 仓库**不含** LaTeX 中间产物（`.aux` / `.log` / `.out` / `.toc` / `.fls` / `.fdb_latexmk` / `.synctex.gz`），它们由编译重新生成。
 - 若需要点击 PDF 跳回源码，编译时保留 `-synctex=1`，用支持 SyncTeX 的阅读器打开 `main.pdf` 即可。
